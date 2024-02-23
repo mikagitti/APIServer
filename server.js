@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql');
 const mysql2 = require('mysql2/promise');
 const bodyParser = require('body-parser');
+const crypto = require('crypto');
 const cors = require('cors');
 
 require('dotenv').config();
@@ -15,16 +16,12 @@ app.use(bodyParser.json());
 /*** REMEMBER ***/
 const PORT = process.env.PORT || 3000; //Add PORT in .env file.
 const ALLOWEDORIGINGS = process.env.ALLOWED_ORIGINS; //Add ALLOWED_ORIGINS to .env file.
-/*** REMEMBER ***/
 
 
+//CORS
 app.use(cors({
     origin: function (origin, callback) {
-
-        console.log(origin);
-
         if (!origin) return callback(null, true);
-
         if (ALLOWEDORIGINGS.indexOf(origin) === -1) {
             var msg = 'The CORS policy for this site does not allow access from the specified Origin.';
             return callback(new Error(msg), false);
@@ -34,12 +31,55 @@ app.use(cors({
     }
 }));
 
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE
+/*
+const corsOptions = {
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'CSRF-Token'],
+    optionsSuccessStatus: 204
+};
+app.use(cors(corsOptions));
+
+const csrfTokens = [];
+
+app.get('/csrf-token', (req, res) => {
+    const token = crypto.randomBytes(64).toString('hex');
+    csrfTokens.push(token);
+
+    console.log(csrfTokens);
+
+    res.send(token);
 });
+*/
+
+app.post('/updateprofile', (req, res) => {
+
+    console.log("updateprofile");
+
+    const { name } = req.body;
+    console.log('NAAME: ' + name);
+    const providedToken = req.header('CSRF-Token');
+
+    console.log(providedToken);
+
+    if (!providedToken || csrfTokens.includes(providedToken)) {
+        return res.status(403).json({
+            message: 'Invalid token.'
+        });
+    }
+
+    const index = csrfTokens.indexOf(providedToken);
+    if (index > -1) {
+        csrfTokens.splice(index, 1);
+    }
+
+    console.log('Delete: Done');
+    console.log(csrfTokens);
+    res.json({
+        message: 'Profile updated successfully!'
+    });
+});
+
 
 const dbConfig = {
     host: process.env.DB_HOST,
@@ -48,103 +88,123 @@ const dbConfig = {
     database: process.env.DB_DATABASE
 };
 
-db.connect((err) => {
-    if (err) {
-        throw err;
-    }
-    console.log('***** Connected to the database *****');
-});
 
-//DATA
+//TESTITAULU
 app.get('/' + process.env.APICALL_DATA, async (req, res) => {
-    const sql = 'SELECT id, nimi FROM ' + process.env.TABLENAME_DATA;
+    const sqlClause = 'SELECT id, nimi FROM ' + process.env.TABLENAME_DATA;
 
-    await db.query(sql, (err, results) => {
-        if (err) {
-            console.error(err);
-            res.status(500).send('SQL select - Server Error')
-        }
-        res.json(results);
-    });
+    const connection = await mysql2.createConnection(dbConfig);
+    const [product] = await connection.execute(sqlClause);
+
+    await connection.end();
+    console.log(product);
+    res.json(product);
 });
+//TESTITAULU
 
-//PRODUCTS
-app.get('/' + process.env.APICALL_PRODUCTS, async (req, res) => {
-    const sql = 'SELECT id, productName, shoppingList FROM ' + process.env.TABLENAME_PRODUCTS;
 
-    await db.query(sql, (err, results) => {
-        if (err) {
-            console.error(err);
-            res.status(500).send('SQL select - Server Error')
-        }
-        res.json(results);
-    });
-});
 
 
 /*********** HEALTH CHECK *************/
 app.get('/healthcheck', async (req, res) => {
-    const sql = 'SELECT id FROM ' + process.env.TABLENAME_PRODUCTS + ' LIMIT 1';
+    const sqlClause = 'SELECT id FROM ' + process.env.TABLENAME_PRODUCTS + ' LIMIT 1';
 
-    await db.query(sql, (err, results) => {
-        if (err) {
-            console.error(err);
-            res.status(500).send('SQL select - Server Error')
-        }
-        res.json(results);
-    });
+    try {
+        const connection = await mysql2.createConnection(dbConfig);
+        const [product] = await connection.execute(sqlClause);
+        await connection.end();
+
+        console.log(product);
+
+        res.json(product);
+
+    } catch (error) {
+        console.error('Failed HealthCheck:', error);
+        throw error;
+    }
 });
+/*********** HEALTH CHECK *************/
+
+
+
+
+/******** GET PRODUCTS *******/
+//GET PRODUCTS
+app.get('/products', async (req, res) => {
+
+    const sqlClause = `SELECT id, productName, shoppingList FROM ${process.env.TABLENAME_PRODUCTS}`;
+
+    try {
+        const connection = await mysql2.createConnection(dbConfig);
+        const [products] = await connection.execute(sqlClause);
+        await connection.end();
+        res.json(products);
+    }
+    catch (error) {
+        console.error('Failed to get products:', error);
+        throw error;
+    }
+});
+/******** GET PRODUCTS *******/
+
 
 
 
 /****** INSERT *******/
 async function insertProduct(data) {
-    const connection = await mysql2.createConnection(dbConfig);
     const defaultShoppingListValue = false;
+    const sqlClause = `INSERT INTO ${process.env.TABLENAME_PRODUCTS} 
+                        (id, productName, shoppingList) 
+                        VALUES ('${data.data.id}', '${data.data.productName}', ${defaultShoppingListValue});`;
 
-    const [rows] = await connection.execute(
-        'INSERT INTO ' + process.env.TABLENAME_PRODUCTS + ' (id, productName, shoppingList) VALUES (?, ?, ?)',
-        [data.id, data.productName, defaultShoppingListValue]
-    );
-    await connection.end();
-    return rows;
+    try {
+        const connection = await mysql2.createConnection(dbConfig);
+        await connection.execute(sqlClause);
+        await connection.end();
+    }
+    catch (error) {
+        console.error('Insert error: ', error)
+    }
 }
 
 app.post('/' + process.env.APICALL_PRODUCTS, async (req, res) => {
     try {
-        const result = await insertProduct(req.body);
-        res.status(201).send({ message: 'Data inserted successfully', result });
+        await insertProduct(req.body);
+        res.status(201).send({ message: 'Product inserted successfully!' });
     } catch (error) {
         console.error('Error inserting data:', error);
-        res.status(500).send({ message: 'Error inserting data into database' });
+        res.status(500).send({ message: 'Error inserting data into database!' });
     }
 });
+/****** INSERT *******/
+
+
 
 
 
 /****** UPDATE *******/
 app.put('/' + process.env.APICALL_PRODUCTS + '/:id', async (req, res) => {
     const { id } = req.params;
-    const { name } = req.body;
+    const { productName } = req.body;
+
+    const sqlClause = `UPDATE ${process.env.TABLENAME_PRODUCTS} SET productName = '${productName}' WHERE id = '${id}';`;
 
     try {
         const connection = await mysql2.createConnection(dbConfig);
-        const [result] = await connection.execute(
-            'UPDATE ' + process.env.TABLENAME_PRODUCTS + ' SET productName = ? WHERE id = ?',
-            [name, id]
-        );
+        const [result] = await connection.execute(sqlClause);
         await connection.end();
 
         if (result.affectedRows === 0) {
-            res.status(404).send({ message: 'No record found with the given ID or no change made.' });
+            res.status(404).send({ message: 'No product found with the given ID or no change made.' });
         } else {
-            res.send({ message: 'Record updated successfully' });
+            res.send({ message: 'Product is updated!' });
         }
     } catch (error) {
-        console.error('Error updating data:', error);
-        res.status(500).send({ message: 'Error updating data in the database' });
+        console.error('Error updating product:', error);
+        res.status(500).send({ message: 'Error updating product in the database' });
     }
 });
+/****** UPDATE *******/
 
 
 
@@ -152,9 +212,11 @@ app.put('/' + process.env.APICALL_PRODUCTS + '/:id', async (req, res) => {
 /*** DELETE ****/
 app.delete('/' + process.env.APICALL_PRODUCTS + '/:id', async (req, res) => {
     const { id } = req.params;
+    const sqlClause = `DELETE FROM ${process.env.TABLENAME_PRODUCTS} WHERE id = '${id}';`;
+
     try {
         const connection = await mysql2.createConnection(dbConfig);
-        const [result] = await connection.execute('DELETE FROM ' + process.env.TABLENAME_PRODUCTS + ' WHERE id = ?', [id]);
+        const [result] = await connection.execute(sqlClause);
         await connection.end();
 
         if (result.affectedRows === 0) {
@@ -167,6 +229,7 @@ app.delete('/' + process.env.APICALL_PRODUCTS + '/:id', async (req, res) => {
         res.status(500).send({ message: 'Error deleting data from the database' });
     }
 });
+/*** DELETE ****/
 
 
 
@@ -180,6 +243,7 @@ app.use((error, req, res, next) => {
     });
 });
 
+// PORT LISTEN
 app.listen(PORT, () => {
     console.log(`Server is running in PORT=${PORT}`);
 });
