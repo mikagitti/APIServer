@@ -1,5 +1,4 @@
 const express = require('express');
-const mysql = require('mysql');
 const mysql2 = require('mysql2/promise');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
@@ -31,33 +30,12 @@ app.use(cors({
     }
 }));
 
-/*
-const corsOptions = {
-    origin: 'http://localhost:3000',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'CSRF-Token'],
-    optionsSuccessStatus: 204
-};
-app.use(cors(corsOptions));
-
-const csrfTokens = [];
-
-app.get('/csrf-token', (req, res) => {
-    const token = crypto.randomBytes(64).toString('hex');
-    csrfTokens.push(token);
-
-    console.log(csrfTokens);
-
-    res.send(token);
-});
-*/
 
 app.post('/updateprofile', (req, res) => {
 
     console.log("updateprofile");
 
     const { name } = req.body;
-    console.log('NAAME: ' + name);
     const providedToken = req.header('CSRF-Token');
 
     console.log(providedToken);
@@ -129,7 +107,6 @@ app.get('/healthcheck', async (req, res) => {
 
 
 /******** GET PRODUCTS *******/
-//GET PRODUCTS
 app.get('/products', async (req, res) => {
 
     const sqlClause = `SELECT id, productName, shoppingList FROM ${process.env.TABLENAME_PRODUCTS}`;
