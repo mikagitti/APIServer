@@ -39,14 +39,10 @@ const dbConfig = {
 /* GET all products */
 app.get('/' + process.env.TEST_PRODUCT_API, async (req, res) => {
 
-    console.log(' ** GET all products ** ');
-
     const sqlClause = `SELECT id, name, description FROM ${process.env.TEST_PRODUCT};`;
 
     const connection = await mysql2.createConnection(dbConfig);
     const [product] = await connection.execute(sqlClause);
-
-    console.log(product);
 
     await connection.end();
     res.json(product);
@@ -57,9 +53,9 @@ app.get('/' + process.env.TEST_PRODUCT_API, async (req, res) => {
 /*** ADD new product ***/
 async function insertNewProduct(data) {
 
-    const { productName } = data;
+    const { productName, description } = data;
 
-    const sqlClause = `INSERT ${process.env.TEST_PRODUCT} (name) VALUES ('${productName}')`;
+    const sqlClause = `INSERT ${process.env.TEST_PRODUCT} (name, description) VALUES ('${productName}', '${description}')`;
 
     const connection = await mysql2.createConnection(dbConfig);
     const [rows] = await connection.execute(sqlClause);
@@ -68,8 +64,6 @@ async function insertNewProduct(data) {
 }
 
 app.post('/' + process.env.TEST_PRODUCT_API, async (req, res) => {
-
-    console.log(' ** ADD new product ** ');
 
     try {
         const result = await insertNewProduct(req.body);
@@ -81,10 +75,52 @@ app.post('/' + process.env.TEST_PRODUCT_API, async (req, res) => {
 });
 
 
+/*** Delete product ****/
+app.delete('/' + process.env.TEST_PRODUCT_API + '/:id', async (req, res) => {
+    const id = req.params.id;
+
+    const sqlClauseShoppingListProducts = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE product_id = ${id}`;
+    const sqlClauseProducts = `DELETE FROM ${process.env.TEST_PRODUCT} WHERE id = ${id}`;
+
+    try {
+        const connection = await mysql2.createConnection(dbConfig);
+
+        // Start transaction
+        await connection.beginTransaction();
+
+        // Delete product from shopping lists
+        await connection.execute(sqlClauseShoppingListProducts);
+
+        // Delete the product
+        const [deleteProductResult] = await connection.execute(sqlClauseProducts);
+
+        if (deleteProductResult.affectedRows === 0) {
+            // Rollback transaction 
+            await connection.rollback();
+            res.status(404).send('Product not found');
+        } else {
+            // Commit transaction if everything is fine
+            await connection.commit();
+            res.send('Product deleted and product removed from shopping lists successfully');
+        }
+
+        await connection.end();
+    } catch (error) {
+        console.error('Failed to delete product:', error);
+        try {
+            await connection.rollback();
+        } catch (rollbackError) {
+            console.error('Rollback failed:', rollbackError);
+        }
+        res.status(500).send('Failed to delete product');
+    }
+});
+
+
+
+
 /*** GET all shoppinglists by USERID ***/
 app.get('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', validateNumber, async (req, res) => {
-
-    console.log(' ** GET all shoppinglists by USERID ** ');
 
     const { id } = req.params;
 
@@ -101,8 +137,6 @@ app.get('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', validateNumber, async
 
 /*** GET shoppinglist products by shoppinglistID ***/
 app.get('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', validateNumber, async (req, res) => {
-
-    console.log(' ** GET all products in shoppinglist ** ');
 
     const { id } = req.params;
 
@@ -122,8 +156,6 @@ app.get('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', validateNumber
 
 /*** UPDATE product name by productId ***/
 app.put('/' + process.env.TEST_PRODUCT_API + '/:id', async (req, res) => {
-
-    console.log(' ** UPDATE product name by productId ** ');
 
     const { id } = req.params;
     const { name } = req.body;
@@ -150,12 +182,10 @@ app.put('/' + process.env.TEST_PRODUCT_API + '/:id', async (req, res) => {
 /*** UPDATE shoppinglist checked ***/
 app.put('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req, res) => {
 
-    console.log(' ** UPDATE shoppinglist checked ** ');
-
     const { id } = req.params;
     const { productId, checked } = req.body;
 
-    const sqlClause = `UPDATE ${process.env.TEST_SHOPPINGLISTPRODUCTS} SET is_checked = ${!checked} WHERE shoppinglist_id = ${id} AND product_id = ${productId};`;    
+    const sqlClause = `UPDATE ${process.env.TEST_SHOPPINGLISTPRODUCTS} SET is_checked = ${!checked} WHERE shoppinglist_id = ${id} AND product_id = ${productId};`;
 
     try {
         const connection = await mysql2.createConnection(dbConfig);
@@ -181,7 +211,7 @@ async function insertProductToShoppingList(data) {
     const { shoppinglist_id, product_id } = data;
 
     const sqlClause = `INSERT ${process.env.TEST_SHOPPINGLISTPRODUCTS} (shoppinglist_id, product_id) VALUES (${shoppinglist_id}, ${product_id})`;
-    
+
     const connection = await mysql2.createConnection(dbConfig);
     const [rows] = await connection.execute(sqlClause);
     await connection.end();
@@ -189,8 +219,6 @@ async function insertProductToShoppingList(data) {
 }
 
 app.post('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API, async (req, res) => {
-
-    console.log(' ** INSERT product to shoppinglist ** ');
 
     try {
         const result = await insertProductToShoppingList(req.body);
@@ -205,10 +233,8 @@ app.post('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API, async (req, res) => {
 /*** Remove product from shoppinglist ****/
 app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req, res) => {
 
-    console.log(' ** Remove product from shoppinglist ** ');
-
     const { id } = req.params;
-    const sqlClause = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE id = '${id}';`;    
+    const sqlClause = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE id = '${id}';`;
 
     try {
         const connection = await mysql2.createConnection(dbConfig);
@@ -228,7 +254,8 @@ app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req,
 
 /*** VALIDATE id ***/
 function validateNumber(req, res, next) {
-    const id = req.params.id;    
+    const id = req.params.id;
+    console.log(`Validation Id = ${id}.`);
 
     if (!id || isNaN(Number(id))) {
         console.log(`*!* Validation is not good! *!*`);
