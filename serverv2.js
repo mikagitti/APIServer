@@ -35,6 +35,18 @@ const dbConfig = {
     database: process.env.DB_DATABASE
 };
 
+/* GET all users */
+app.get('/' + process.env.TEST_USER_API, async (req, res) => {
+
+    const sqlClause = `SELECT id, username FROM ${process.env.TEST_USER};`;
+
+    const connection = await mysql2.createConnection(dbConfig);
+    const [product] = await connection.execute(sqlClause);
+
+    await connection.end();
+    res.json(product);
+
+});
 
 /* GET all products */
 app.get('/' + process.env.TEST_PRODUCT_API, async (req, res) => {
@@ -234,6 +246,7 @@ app.post('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API, async (req, res) => {
 app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req, res) => {
 
     const { id } = req.params;
+
     const sqlClause = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE id = '${id}';`;
 
     try {
@@ -255,7 +268,6 @@ app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req,
 /*** VALIDATE id ***/
 function validateNumber(req, res, next) {
     const id = req.params.id;
-    console.log(`Validation Id = ${id}.`);
 
     if (!id || isNaN(Number(id))) {
         console.log(`*!* Validation is not good! *!*`);
@@ -263,16 +275,6 @@ function validateNumber(req, res, next) {
     }
     next();
 }
-
-
-
-
-
-
-
-
-
-
 
 
 // Error handling middleware
