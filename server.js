@@ -67,22 +67,6 @@ const dbConfig = {
 };
 
 
-//TESTITAULU
-app.get('/' + process.env.APICALL_DATA, async (req, res) => {
-    const sqlClause = 'SELECT id, nimi FROM ' + process.env.TABLENAME_DATA;
-
-    const connection = await mysql2.createConnection(dbConfig);
-    const [product] = await connection.execute(sqlClause);
-
-    await connection.end();
-    console.log(product);
-    res.json(product);
-});
-//TESTITAULU
-
-
-
-
 /*********** HEALTH CHECK *************/
 app.get('/healthcheck', async (req, res) => {
     const sqlClause = 'SELECT id FROM ' + process.env.TABLENAME_PRODUCTS + ' LIMIT 1';
