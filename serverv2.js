@@ -66,10 +66,7 @@ app.get('/' + process.env.TEST_PRODUCT_API, async (req, res) => {
 /*** ADD new product ***/
 async function insertNewProduct(data) {
 
-    console.log(' ** ADD new product ** ');
-
     const { productName, description } = data;
-
     const sqlClause = `INSERT ${process.env.TEST_PRODUCT} (name, description) VALUES ('${productName}', '${description}')`;
     const connection = await mysql2.createConnection(dbConfig);
     const [rows] = await connection.execute(sqlClause);
@@ -97,7 +94,7 @@ app.delete('/' + process.env.TEST_PRODUCT_API + '/:id', async (req, res) => {
 
     console.log(' ** DELETE product ** ');
 
-    const id = req.params.id;    
+    const id = req.params.id;
     const sqlClauseShoppingListProducts = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE product_id = ${id}`;
     const sqlClauseProducts = `DELETE FROM ${process.env.TEST_PRODUCT} WHERE id = ${id}`;
 
@@ -139,7 +136,7 @@ app.delete('/' + process.env.TEST_PRODUCT_API + '/:id', async (req, res) => {
 app.post('/' + process.env.TEST_SHOPPINGLISTS_API, async (req, res) => {
 
     console.log(' ** Add new shopping list for user ** ');
-
+    
     const { name, userid } = req.body;
     const sqlClause = `INSERT ${process.env.TEST_SHOPPINGLISTS} (name, user_id) VALUES ('${name}', ${userid})`;
     const connection = await mysql2.createConnection(dbConfig);
@@ -163,8 +160,7 @@ app.put('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', async (req, res) => {
 
     const { id } = req.params;
     const { name } = req.body;
-
-    const sqlClause = `UPDATE ${process.env.TEST_SHOPPINGLISTS} SET name = '${name}' WHERE id = ${id}`;
+    const sqlClause = `UPDATE ${process.env.TEST_SHOPPINGLISTS} SET name = '${name}' WHERE id = ${id}`;    
     const connection = await mysql2.createConnection(dbConfig);
 
     try {
@@ -190,7 +186,7 @@ app.delete('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', async (req, res) =
     console.log(' ** DELETE users shopping list ** ');
 
     const id = req.params.id;
-    const sqlClause = `DELETE FROM ${process.env.TEST_SHOPPINGLISTS} WHERE id = ${id}`;    
+    const sqlClause = `DELETE FROM ${process.env.TEST_SHOPPINGLISTS} WHERE id = ${id}`;
     const connection = await mysql2.createConnection(dbConfig);
 
     try {
@@ -205,16 +201,37 @@ app.delete('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', async (req, res) =
 });
 
 
+/*** GET shoppinglist by ID ***/
+app.get('/' + process.env.TEST_SHOPPINGLISTS_API + '/id/:id', validateNumber, async (req, res) => {
+
+    console.log(' ** GET shopping list by ID ** ');
+
+    let returnResult;
+    const { id } = req.params;
+    const sqlClause = `SELECT id, name, user_id FROM ${process.env.TEST_SHOPPINGLISTS} WHERE id = ${id}`;  
+    const connection = await mysql2.createConnection(dbConfig);
+
+    try {
+        const [result] = await connection.execute(sqlClause);
+        returnResult = result;
+    } catch (error) {
+        console.error('Error executing query:', error);
+        returnResult = { error: 'Failed to execute query.' };
+        res.status(500);
+    } finally {
+        await connection.end();
+    }
+    res.json(returnResult);
+});
 
 /*** GET all shoppinglists by USERID ***/
-app.get('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', validateNumber, async (req, res) => {
+app.get('/' + process.env.TEST_SHOPPINGLISTS_API + '/user/:id', validateNumber, async (req, res) => {
 
     console.log(' ** GET all shoppinglists by USERID ** ');
 
     let returnResult;
     const { id } = req.params;
-
-    const sqlClause = `SELECT id, name FROM ${process.env.TEST_SHOPPINGLISTS} WHERE user_id = ${id};`;
+    const sqlClause = `SELECT id, name FROM ${process.env.TEST_SHOPPINGLISTS} WHERE user_id = ${id}`;
     const connection = await mysql2.createConnection(dbConfig);
 
     try {
@@ -235,14 +252,13 @@ app.get('/' + process.env.TEST_SHOPPINGLISTS_API + '/:id', validateNumber, async
 app.get('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', validateNumber, async (req, res) => {
 
     console.log(' ** GET all products in shoppinglist ** ');
+
     const { id } = req.params;
     let returnResult;
-
     const sqlClause = `SELECT SLP.id, SLP.shoppinglist_id, SLP.product_id, P.name, SLP.is_checked 
                         FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} SLP
                         LEFT JOIN ${process.env.TEST_PRODUCT} P ON SLP.product_id = P.id
                         WHERE shoppinglist_id = ${id};`;
-
     const connection = await mysql2.createConnection(dbConfig);
 
     try {
@@ -260,33 +276,6 @@ app.get('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', validateNumber
 });
 
 
-/*** UPDATE product name by productId ***/
-app.put('/' + process.env.TEST_PRODUCT_API + '/:id', async (req, res) => {
-
-    console.log(' ** UPDATE product name by productId ** ');
-
-    const { id } = req.params;
-    const { name } = req.body;
-    const sqlClause = `UPDATE ${process.env.TEST_PRODUCT} SET name = '${name}' WHERE id = '${id}';`;
-    const connection = await mysql2.createConnection(dbConfig);
-
-    try {
-        const [result] = await connection.execute(sqlClause);
-
-        if (result.affectedRows === 0) {
-            res.status(404).send({ message: 'No product found with the given ID or no change made.' });
-        } else {
-            res.send({ message: 'Product is updated!' });
-        }
-    } catch (error) {
-        console.error('Error updating product:', error);
-        res.status(500).send({ message: 'Error updating product in the database' });
-    } finally {
-        await connection.end();
-    }
-});
-
-
 /*** UPDATE shoppinglist checked ***/
 app.put('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req, res) => {
 
@@ -294,7 +283,7 @@ app.put('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req, re
 
     const { id } = req.params;
     const { productId, checked } = req.body;
-    const sqlClause = `UPDATE ${process.env.TEST_SHOPPINGLISTPRODUCTS} SET is_checked = ${!checked} WHERE shoppinglist_id = ${id} AND product_id = ${productId};`;
+    const sqlClause = `UPDATE ${process.env.TEST_SHOPPINGLISTPRODUCTS} SET is_checked = ${!checked} WHERE shoppinglist_id = ${id} AND product_id = ${productId}`;
     const connection = await mysql2.createConnection(dbConfig);
 
     try {
@@ -346,8 +335,8 @@ app.post('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API, async (req, res) => {
 app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/:id', async (req, res) => {
 
     console.log(' ** Remove product from shoppinglist ** ');
-    const { id } = req.params;
 
+    const { id } = req.params;
     const sqlClauseDeleteProductsInShoppingList = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE id = ${id}`;
     const connection = await mysql2.createConnection(dbConfig);
 
@@ -370,7 +359,6 @@ app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/all/:id', async (
     console.log(' ** Remove shoppinglist ** ');
 
     const { id } = req.params;
-
     const sqlClauseDeleteShoppingList = `DELETE FROM ${process.env.TEST_SHOPPINGLISTS} WHERE id = ${id}`;
     const sqlClauseDeleteProductsInShoppingList = `DELETE FROM ${process.env.TEST_SHOPPINGLISTPRODUCTS} WHERE shoppinglist_id = ${id}`;
     const connection = await mysql2.createConnection(dbConfig);
@@ -397,11 +385,6 @@ app.delete('/' + process.env.TEST_SHOPPINGLISTPRODUCTS_API + '/all/:id', async (
 
 
 
-
-
-
-
-
 // Error handling middleware
 app.use((error, req, res, next) => {
     res.status(error.status || 500).json({
@@ -415,6 +398,7 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
     console.log(`Server is running in PORT=${PORT}`);
 });
+
 
 /*** VALIDATE id ***/
 function validateNumber(req, res, next) {
